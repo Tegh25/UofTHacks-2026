@@ -1,63 +1,74 @@
 /**
- * Shared patient intake schema for TriageAI.
- * Used by patient-intake app, doctor-dashboard, and backend agents.
+ * Shared patient record schema for TriageAI.
+ * Mirrors the MongoDB document produced by the intake kiosk and the
+ * multi-agent pipeline, and consumed by the doctor dashboard.
  *
  * NOTE: This schema does NOT include diagnoses or treatment recommendations.
  * All AI outputs are decision-support only.
  */
 
 // ─────────────────────────────────────────────────────────────
-// Raw Intake
+// Patient-Provided Data (from the intake kiosk)
 // ─────────────────────────────────────────────────────────────
 
-export type IntakeSource = 'speech' | 'text';
+export type EntryCategory = 'pain' | 'unwell' | 'injured' | 'worried' | 'other';
 
-export interface RawIntake {
-  source: IntakeSource;
-  content: string;
-  language?: string;
-  capturedAt: string; // ISO 8601
+export interface BasicInfo {
+  name: string;
+  age: number | null;
+  sexAtBirth: 'male' | 'female' | 'other' | null;
+  preferredLanguage: string;
 }
-
-// ─────────────────────────────────────────────────────────────
-// Demographics
-// ─────────────────────────────────────────────────────────────
-
-export interface Demographics {
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string; // ISO 8601 date
-  sex?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
-  preferredLanguage?: string;
-  contactPhone?: string;
-  contactEmail?: string;
-}
-
-// ─────────────────────────────────────────────────────────────
-// Vitals (optional)
-// ─────────────────────────────────────────────────────────────
 
 export interface Vitals {
-  heartRateBpm?: number;
-  bloodPressureSystolic?: number;
-  bloodPressureDiastolic?: number;
-  temperatureCelsius?: number;
-  respiratoryRate?: number;
-  oxygenSaturationPercent?: number;
-  recordedAt: string; // ISO 8601
+  heartRate: number | null;
+  respirationRate: number | null;
+  captured: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────
-// Multi-Agent State
+// Agent Outputs
+// ─────────────────────────────────────────────────────────────
+
+export type UrgencyLevel = 'Low' | 'Medium' | 'High' | 'Critical';
+
+/** Agent 1: Intake Structuring Agent */
+export interface StructuredIntake {
+  primarySymptoms: string[];
+  symptomDuration: string | null;
+  redFlags: string[];
+  structuredSummary: string;
+}
+
+/** Agent 2: Urgency Classification Agent */
+export interface UrgencyClassification {
+  urgencyLevel: UrgencyLevel;
+  confidence: number; // 0..1
+  rationale: string[];
+}
+
+/** Deterministic guardrail step (no AI, escalate-only) */
+export interface GuardrailResult {
+  finalUrgencyLevel: UrgencyLevel;
+  appliedGuardrails: string[];
+}
+
+/** Agent 3: Clinician Summary Agent */
+export interface ClinicianSummary {
+  clinicianReport: string;
+  suggestedNextSteps: string[];
+  flags: string[];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Multi-Agent Execution State
 // ─────────────────────────────────────────────────────────────
 
 export type AgentRole =
-  | 'intake'
-  | 'transcription'
-  | 'extraction'
-  | 'triage'
-  | 'summary'
-  | 'router';
+  | 'intakeStructuring'
+  | 'urgencyClassification'
+  | 'guardrails'
+  | 'clinicianSummary';
 
 export interface AgentStateEntry {
   agentRole: AgentRole;
@@ -69,15 +80,25 @@ export interface AgentStateEntry {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Patient Intake Record (root document)
+// Patient Record (root document)
 // ─────────────────────────────────────────────────────────────
 
 export interface PatientIntakeRecord {
-  id: string; // unique record ID (e.g., UUID or Mongo ObjectId)
-  demographics: Demographics;
-  rawIntake: RawIntake;
-  vitals?: Vitals;
+  id: string; // Mongo ObjectId as string
+  entryCategory: EntryCategory | null;
+  symptomExplanation: string;
+  vitals: Vitals;
+  basicInfo: BasicInfo;
+  preExistingConditions: string[];
+
+  // Written incrementally by the agent pipeline
   agentStates: AgentStateEntry[];
+  structuredIntake?: StructuredIntake;
+  urgencyClassification?: UrgencyClassification;
+  guardrailResult?: GuardrailResult;
+  clinicianSummary?: ClinicianSummary;
+  triageStatus?: 'processing' | 'completed' | 'error';
+
   createdAt: string; // ISO 8601
   updatedAt: string; // ISO 8601
 }

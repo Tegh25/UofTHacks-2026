@@ -29,8 +29,7 @@ export default function App() {
       const data = await fetchPatients();
       setPatients(data);
       setError(null);
-    } catch (err) {
-      console.error('Failed to fetch patients:', err);
+    } catch {
       setError('Failed to load patients. Is the server running?');
     } finally {
       setIsLoading(false);
@@ -44,8 +43,7 @@ export default function App() {
     try {
       const patient = await fetchPatientById(id);
       setSelectedPatient(patient);
-    } catch (err) {
-      console.error('Failed to fetch patient details:', err);
+    } catch {
       setError('Failed to load patient details.');
     }
   };
@@ -73,8 +71,7 @@ export default function App() {
       await clearDemoData();
       setPatients([]);
       setSelectedPatient(null);
-    } catch (err) {
-      console.error('Failed to clear demo data:', err);
+    } catch {
       setError('Failed to clear demo data.');
     }
   };
@@ -90,6 +87,27 @@ export default function App() {
 
     return () => clearInterval(interval);
   }, [loadPatients]);
+
+  /**
+   * While a patient detail is open, keep it fresh too so clinicians can
+   * watch agents progress from pending → running → completed.
+   */
+  const selectedPatientId = selectedPatient?._id ?? null;
+  useEffect(() => {
+    if (!selectedPatientId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const patient = await fetchPatientById(selectedPatientId);
+        setSelectedPatient(patient);
+      } catch {
+        // Keep showing the last known detail; the list-level error banner
+        // already covers persistent connectivity problems.
+      }
+    }, POLL_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [selectedPatientId]);
 
   return (
     <div className="flex min-h-screen flex-col bg-gray-50">

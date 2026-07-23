@@ -1,64 +1,40 @@
 /**
  * Deterministic guardrails for triage urgency classification.
- * No AI/LLM usage.
+ * No AI/LLM usage. Guardrails may only escalate urgency, never downgrade it.
  */
 
-export type UrgencyLevel = 'Low' | 'Medium' | 'High' | 'Critical';
-
-export interface UrgencyAgentOutput {
-  urgencyLevel: UrgencyLevel;
-  confidence: number;
-  rationale: string[];
-}
-
-export interface StructuredIntake {
-  primarySymptoms: string[];
-  redFlags: string[];
-}
-
-export interface Demographics {
-  age: number | null;
-}
-
-export interface Vitals {
-  heartRate?: number;
-  respirationRate?: number;
-  confidence?: number;
-  available?: boolean;
-}
-
-export interface GuardrailResult {
-  finalUrgencyLevel: UrgencyLevel;
-  appliedGuardrails: string[];
-}
-
-const urgencyRank: Record<UrgencyLevel, number> = {
+const urgencyRank = {
   Low: 1,
   Medium: 2,
   High: 3,
   Critical: 4,
 };
 
-function maxUrgency(current: UrgencyLevel, minimum: UrgencyLevel): UrgencyLevel {
+function maxUrgency(current, minimum) {
   return urgencyRank[minimum] > urgencyRank[current] ? minimum : current;
 }
 
-function hasRedFlags(structuredIntake: StructuredIntake): boolean {
+function hasRedFlags(structuredIntake) {
   return Array.isArray(structuredIntake.redFlags) && structuredIntake.redFlags.length > 0;
 }
 
 /**
  * Apply guardrails to agent urgency output.
- * Guardrails may only escalate, never downgrade.
+ *
+ * @param {{ urgencyLevel: 'Low'|'Medium'|'High'|'Critical', confidence: number }} urgencyAgentOutput
+ * @param {{ primarySymptoms: string[], redFlags: string[] }} structuredIntake
+ * @param {{ age: number | null }} demographics
+ * @param {{ heartRate?: number|null, respirationRate?: number|null }} vitals
+ * @returns {{ finalUrgencyLevel: string, appliedGuardrails: string[] }}
  */
 export function applyUrgencyGuardrails(
-  urgencyAgentOutput: UrgencyAgentOutput,
-  structuredIntake: StructuredIntake,
-  demographics: Demographics,
-  vitals: Vitals
-): GuardrailResult {
-  const appliedGuardrails: string[] = [];
-  let finalUrgencyLevel: UrgencyLevel = urgencyAgentOutput.urgencyLevel;
+  urgencyAgentOutput,
+  structuredIntake,
+  demographics,
+  vitals
+) {
+  const appliedGuardrails = [];
+  let finalUrgencyLevel = urgencyAgentOutput.urgencyLevel;
 
   // 1) Low confidence → flag only, no downgrade
   if (urgencyAgentOutput.confidence < 0.6) {
@@ -88,10 +64,12 @@ export function applyUrgencyGuardrails(
   }
 
   // 5) Elevated vitals → minimum High
-  const heartRate = vitals.heartRate;
-  const respirationRate = vitals.respirationRate;
-  if ((typeof heartRate === 'number' && heartRate > 110) ||
-      (typeof respirationRate === 'number' && respirationRate > 22)) {
+  const heartRate = vitals?.heartRate;
+  const respirationRate = vitals?.respirationRate;
+  if (
+    (typeof heartRate === 'number' && heartRate > 110) ||
+    (typeof respirationRate === 'number' && respirationRate > 22)
+  ) {
     finalUrgencyLevel = maxUrgency(finalUrgencyLevel, 'High');
     appliedGuardrails.push('Elevated vitals → at least High');
   }

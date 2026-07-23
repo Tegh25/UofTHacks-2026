@@ -1,12 +1,17 @@
 /**
  * Screen 4: Basic Information
  * Collects minimal demographic context from the patient.
+ * AI autofill suggestions come from the patient's own symptom description;
+ * the patient always has final control.
  */
 
+import { useState } from 'react';
 import type { BasicInfo } from '../types';
+import { suggestAgeFromText } from '../suggestions';
 
 interface Props {
   value: BasicInfo;
+  symptomText: string;
   onChange: (info: BasicInfo) => void;
   onNext: () => void;
   onBack: () => void;
@@ -14,12 +19,27 @@ interface Props {
 
 export default function BasicInfoScreen({
   value,
+  symptomText,
   onChange,
   onNext,
   onBack,
 }: Props) {
+  const [suggestionNote, setSuggestionNote] = useState<string | null>(null);
+
   const handleChange = (field: keyof BasicInfo, val: string | number | null) => {
     onChange({ ...value, [field]: val });
+  };
+
+  const handleSuggestAge = () => {
+    const suggested = suggestAgeFromText(symptomText);
+    if (suggested !== null) {
+      handleChange('age', suggested);
+      setSuggestionNote(
+        `Suggested age ${suggested} from your description — you can change it anytime.`
+      );
+    } else {
+      setSuggestionNote('No age found in your description. Please select it below.');
+    }
   };
 
   return (
@@ -107,11 +127,17 @@ export default function BasicInfoScreen({
                 </select>
                 <button
                   type="button"
+                  onClick={handleSuggestAge}
                   className="rounded-xl border-2 border-gray-300 bg-white px-6 py-4 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
                 >
                   🔮 Suggest
                 </button>
               </div>
+              {suggestionNote && (
+                <p className="mt-2 text-sm text-gray-600" role="status">
+                  {suggestionNote}
+                </p>
+              )}
             </div>
 
             {/* Sex at birth */}

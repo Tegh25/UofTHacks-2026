@@ -38,6 +38,7 @@ export default function App() {
   const [intake, setIntake] = useState<IntakeState>(initialIntakeState);
   const [intakeId, setIntakeId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Navigation helpers
   const goNext = () => setStep((s) => Math.min(s + 1, 6) as Step);
@@ -49,21 +50,23 @@ export default function App() {
     setIntake(initialIntakeState);
     setStep(0);
     setIntakeId('');
+    setSubmitError(null);
   };
 
   // Handle final submission
   const handleSubmit = async () => {
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       const result = await submitIntake(intake);
       if (result.success) {
         setIntakeId(result.intakeId);
         setStep(6);
       }
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Submission failed:', error);
-      // In a real app, show error UI here
+    } catch {
+      setSubmitError(
+        'We could not submit your intake. Please try again, or ask a staff member for help.'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -117,6 +120,7 @@ export default function App() {
         return (
           <BasicInfoScreen
             value={intake.basicInfo}
+            symptomText={intake.symptomExplanation}
             onChange={setBasicInfo}
             onNext={goNext}
             onBack={goBack}
@@ -127,6 +131,7 @@ export default function App() {
         return (
           <PreExistingConditionsScreen
             value={intake.preExistingConditions}
+            symptomText={intake.symptomExplanation}
             onChange={setConditions}
             onNext={goNext}
             onBack={goBack}
@@ -163,5 +168,24 @@ export default function App() {
     );
   }
 
-  return renderStep();
+  return (
+    <>
+      {submitError && (
+        <div
+          role="alert"
+          className="fixed inset-x-0 top-0 z-50 flex items-center justify-center gap-3 bg-red-600 px-6 py-4 text-white shadow-lg"
+        >
+          <span className="text-lg font-medium">{submitError}</span>
+          <button
+            onClick={() => setSubmitError(null)}
+            aria-label="Dismiss error"
+            className="rounded-lg border border-white/50 px-3 py-1 text-sm font-semibold hover:bg-white/10"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+      {renderStep()}
+    </>
+  );
 }

@@ -3,15 +3,15 @@
  * Uses both color AND text label for accessibility.
  */
 
-import type { UrgencyLevel } from '../types';
+import type { UrgencyDisplay } from '../types';
 
 interface Props {
-  level: UrgencyLevel;
+  level: UrgencyDisplay;
   size?: 'sm' | 'md' | 'lg';
 }
 
 const urgencyConfig: Record<
-  UrgencyLevel,
+  UrgencyDisplay,
   { bg: string; text: string; border: string }
 > = {
   Critical: {
@@ -33,6 +33,11 @@ const urgencyConfig: Record<
     bg: 'bg-green-100',
     text: 'text-green-800',
     border: 'border-green-300',
+  },
+  Processing: {
+    bg: 'bg-gray-100',
+    text: 'text-gray-700',
+    border: 'border-gray-300',
   },
 };
 

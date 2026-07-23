@@ -1,9 +1,10 @@
 /**
  * Patient Detail View - shows full triage context for a single patient.
- * Includes agent execution timeline, structured intake, urgency assessment, and summary.
+ * Includes agent execution timeline, structured intake, urgency assessment,
+ * guardrails, clinician summary, demographics, and vitals.
  */
 
-import type { PatientRecord } from '../types';
+import type { AgentStateEntry, PatientRecord } from '../types';
 import UrgencyBadge from './UrgencyBadge';
 import { formatDateTime } from '../utils';
 
@@ -12,11 +13,21 @@ interface Props {
   onBack: () => void;
 }
 
+const categoryLabels: Record<string, string> = {
+  pain: 'In pain',
+  unwell: 'Feeling unwell',
+  injured: 'Injured',
+  worried: 'Worried / something feels wrong',
+  other: 'Other',
+};
+
 export default function PatientDetailView({ patient, onBack }: Props) {
-  const urgency = patient.guardrailResult?.finalUrgencyLevel || 'Low';
+  const urgency = patient.guardrailResult?.finalUrgencyLevel ?? 'Processing';
   const patientName = patient.basicInfo?.name || 'Anonymous Patient';
   const age = patient.basicInfo?.age;
-  const entryCategory = patient.entryCategory || 'General';
+  const entryCategory = patient.entryCategory
+    ? categoryLabels[patient.entryCategory] ?? patient.entryCategory
+    : 'General';
 
   return (
     <div className="flex-1 bg-gray-50">
@@ -46,7 +57,7 @@ export default function PatientDetailView({ patient, onBack }: Props) {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{patientName}</h1>
               <div className="mt-1 flex items-center gap-4 text-sm text-gray-600">
-                {age && (
+                {age != null && (
                   <div className="flex items-center gap-1.5">
                     <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -76,19 +87,23 @@ export default function PatientDetailView({ patient, onBack }: Props) {
       {/* Content */}
       <div className="mx-auto max-w-7xl px-8 py-8">
         <div className="space-y-6">
-          {/* Agent Execution Timeline */}
+          {/* Responsible AI disclaimer */}
+          <div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4">
+            <svg className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-blue-900">
+              <strong>Decision support only.</strong> AI outputs on this page are not
+              diagnoses and do not recommend treatment. All assessments require
+              verification by clinical staff.
+            </p>
+          </div>
+
           <AgentTimelineSection agentStates={patient.agentStates} />
-
-          {/* Structured Intake Output */}
+          <PatientOverviewSection patient={patient} />
           <StructuredIntakeSection patient={patient} />
-
-          {/* Urgency Assessment */}
           <UrgencyAssessmentSection patient={patient} />
-
-          {/* Clinician Summary */}
           <ClinicianSummarySection patient={patient} />
-
-          {/* Vitals */}
           <VitalsSection patient={patient} />
         </div>
       </div>
@@ -96,13 +111,81 @@ export default function PatientDetailView({ patient, onBack }: Props) {
   );
 }
 
-/**
- * Agent Execution Timeline section
- */
+// ─────────────────────────────────────────────────────────────
+// Agent Execution Timeline
+// ─────────────────────────────────────────────────────────────
+
+const agentLabels: Record<string, { name: string; description: string }> = {
+  intakeStructuring: {
+    name: 'Intake Structuring Agent',
+    description: 'Parses the patient\u2019s words into structured fields',
+  },
+  urgencyClassification: {
+    name: 'Urgency Classification Agent',
+    description: 'Estimates urgency with confidence (decision support only)',
+  },
+  guardrails: {
+    name: 'Safety Guardrails',
+    description: 'Deterministic rules — no AI, may only escalate urgency',
+  },
+  clinicianSummary: {
+    name: 'Clinician Summary Agent',
+    description: 'Produces a concise, review-only report for staff',
+  },
+};
+
+const statusLabels: Record<string, string> = {
+  pending: 'Pending',
+  in_progress: 'Running',
+  completed: 'Completed',
+  error: 'Error',
+};
+
+function AgentStatusIcon({ status }: { status: string }) {
+  if (status === 'completed') {
+    return (
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+        <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+    );
+  }
+  if (status === 'in_progress') {
+    return (
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+        <span className="h-3 w-3 animate-ping rounded-full bg-blue-500" />
+      </div>
+    );
+  }
+  if (status === 'error') {
+    return (
+      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-red-100">
+        <svg className="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </div>
+    );
+  }
+  // pending
+  return (
+    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100">
+      <span className="h-3 w-3 rounded-full border-2 border-gray-400" />
+    </div>
+  );
+}
+
+const statusBadgeClasses: Record<string, string> = {
+  completed: 'bg-green-100 text-green-700',
+  in_progress: 'bg-blue-100 text-blue-700',
+  error: 'bg-red-100 text-red-700',
+  pending: 'bg-gray-100 text-gray-600',
+};
+
 function AgentTimelineSection({
   agentStates,
 }: {
-  agentStates: any[];
+  agentStates?: AgentStateEntry[];
 }) {
   if (!agentStates || agentStates.length === 0) {
     return null;
@@ -122,43 +205,129 @@ function AgentTimelineSection({
         Multi-agent orchestration showing state hand-offs between AI agents
       </p>
 
-      <div className="space-y-3">
-        {agentStates.map((state, index) => (
-          <div key={index} className="flex items-start gap-3">
-            {/* Check icon */}
-            <div className="flex-shrink-0">
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
-                <svg className="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+      <div className="space-y-4">
+        {agentStates.map((state) => {
+          const label = agentLabels[state.agentRole] ?? {
+            name: state.agentRole,
+            description: '',
+          };
+          return (
+            <div key={state.agentRole} className="flex items-start gap-3">
+              <div className="flex-shrink-0">
+                <AgentStatusIcon status={state.status} />
               </div>
-            </div>
 
-            {/* Agent info */}
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-gray-900">{state.agent}</span>
-                <span className="text-sm text-gray-500">{formatDateTime(state.timestamp)}</span>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-gray-900">{label.name}</span>
+                  {state.completedAt && (
+                    <span className="text-sm text-gray-500">
+                      {formatDateTime(state.completedAt)}
+                    </span>
+                  )}
+                </div>
+                {label.description && (
+                  <p className="text-sm text-gray-500">{label.description}</p>
+                )}
+                <span
+                  className={`mt-1 inline-block rounded px-2 py-0.5 text-xs font-medium ${
+                    statusBadgeClasses[state.status] ?? statusBadgeClasses.pending
+                  }`}
+                >
+                  {statusLabels[state.status] ?? state.status}
+                </span>
+                {state.errorMessage && (
+                  <p className="mt-1 text-sm text-red-600">{state.errorMessage}</p>
+                )}
               </div>
-              <span className="mt-1 inline-block rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                {state.status}
-              </span>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );
 }
 
-/**
- * Structured Intake section
- */
+// ─────────────────────────────────────────────────────────────
+// Patient Overview (demographics + raw intake)
+// ─────────────────────────────────────────────────────────────
+
+function PatientOverviewSection({ patient }: { patient: PatientRecord }) {
+  const info = patient.basicInfo;
+
+  return (
+    <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
+      <div className="mb-4 flex items-center gap-2">
+        <svg className="h-5 w-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+        </svg>
+        <h2 className="text-lg font-semibold text-gray-900">Patient Overview</h2>
+      </div>
+      <p className="mb-4 text-sm text-gray-600">As reported by the patient at the kiosk</p>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <OverviewField label="Name" value={info?.name || 'Not provided'} />
+        <OverviewField label="Age" value={info?.age != null ? String(info.age) : 'Not provided'} />
+        <OverviewField label="Sex at birth" value={info?.sexAtBirth || 'Not provided'} />
+        <OverviewField label="Preferred language" value={info?.preferredLanguage || 'Not provided'} />
+      </div>
+
+      <div className="mt-4">
+        <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+          Pre-Existing Conditions (self-reported)
+        </h3>
+        {patient.preExistingConditions?.length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {patient.preExistingConditions.map((c) => (
+              <span key={c} className="rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-800">
+                {c}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm italic text-gray-400">None reported</p>
+        )}
+      </div>
+
+      {patient.symptomExplanation && (
+        <div className="mt-4">
+          <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+            In Their Own Words
+          </h3>
+          <blockquote className="rounded-lg bg-gray-50 p-4 italic text-gray-700">
+            “{patient.symptomExplanation}”
+          </blockquote>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function OverviewField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <h3 className="mb-1 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        {label}
+      </h3>
+      <p className="capitalize text-gray-900">{value}</p>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Structured Intake
+// ─────────────────────────────────────────────────────────────
+
 function StructuredIntakeSection({ patient }: { patient: PatientRecord }) {
   const intake = patient.structuredIntake;
 
   if (!intake) {
-    return null;
+    return (
+      <PendingSection
+        title="Structured Intake Output"
+        message="Waiting for the Intake Structuring Agent to finish..."
+      />
+    );
   }
 
   return (
@@ -191,17 +360,17 @@ function StructuredIntakeSection({ patient }: { patient: PatientRecord }) {
         )}
 
         {/* Duration */}
-        {intake.duration && (
+        {intake.symptomDuration && (
           <div>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
               Symptom Duration
             </h3>
-            <p className="text-gray-700">{intake.duration}</p>
+            <p className="text-gray-700">{intake.symptomDuration}</p>
           </div>
         )}
 
-        {/* Red Flags (if any from structured data) */}
-        {patient.clinicianSummary?.redFlags && patient.clinicianSummary.redFlags.length > 0 && (
+        {/* Red Flags */}
+        {intake.redFlags && intake.redFlags.length > 0 && (
           <div className="rounded-lg bg-red-50 p-4">
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-red-800">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -210,7 +379,7 @@ function StructuredIntakeSection({ patient }: { patient: PatientRecord }) {
               Red Flags
             </h3>
             <ul className="list-disc space-y-1 pl-5">
-              {patient.clinicianSummary.redFlags.map((flag, i) => (
+              {intake.redFlags.map((flag, i) => (
                 <li key={i} className="text-red-700">{flag}</li>
               ))}
             </ul>
@@ -218,12 +387,12 @@ function StructuredIntakeSection({ patient }: { patient: PatientRecord }) {
         )}
 
         {/* Structured Summary */}
-        {patient.symptomExplanation && (
+        {intake.structuredSummary && (
           <div>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
               Structured Summary
             </h3>
-            <p className="text-gray-700">{patient.symptomExplanation}</p>
+            <p className="text-gray-700">{intake.structuredSummary}</p>
           </div>
         )}
       </div>
@@ -231,15 +400,21 @@ function StructuredIntakeSection({ patient }: { patient: PatientRecord }) {
   );
 }
 
-/**
- * Urgency Assessment section
- */
+// ─────────────────────────────────────────────────────────────
+// Urgency Assessment (agent output + guardrails)
+// ─────────────────────────────────────────────────────────────
+
 function UrgencyAssessmentSection({ patient }: { patient: PatientRecord }) {
   const urgencyClassification = patient.urgencyClassification;
   const guardrailResult = patient.guardrailResult;
 
   if (!urgencyClassification && !guardrailResult) {
-    return null;
+    return (
+      <PendingSection
+        title="Urgency Assessment"
+        message="Waiting for the Urgency Classification Agent to finish..."
+      />
+    );
   }
 
   return (
@@ -253,75 +428,104 @@ function UrgencyAssessmentSection({ patient }: { patient: PatientRecord }) {
         </h2>
       </div>
       <p className="mb-4 text-sm text-gray-600">
-        Urgency proposed by AI, constrained by safety rules
+        Urgency proposed by AI, constrained by deterministic safety rules
       </p>
 
       <div className="space-y-4">
-        {/* Final Urgency Level */}
-        {guardrailResult && (
-          <div>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Final Urgency Level
-            </h3>
-            <UrgencyBadge level={guardrailResult.finalUrgencyLevel} size="lg" />
-          </div>
-        )}
+        <div className="grid gap-4 sm:grid-cols-3">
+          {/* AI-proposed urgency */}
+          {urgencyClassification && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                AI-Proposed Urgency
+              </h3>
+              <UrgencyBadge level={urgencyClassification.urgencyLevel} size="md" />
+            </div>
+          )}
 
-        {/* Confidence Score */}
-        {urgencyClassification && (
-          <div>
-            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
-              Confidence Score
-            </h3>
-            <p className="text-3xl font-bold text-gray-900">
-              {Math.round(urgencyClassification.confidence * 100)}%
-            </p>
-          </div>
-        )}
+          {/* Final Urgency Level */}
+          {guardrailResult && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                Final Urgency (Post-Guardrails)
+              </h3>
+              <UrgencyBadge level={guardrailResult.finalUrgencyLevel} size="lg" />
+            </div>
+          )}
+
+          {/* Confidence Score */}
+          {urgencyClassification && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+                Confidence
+              </h3>
+              <p className="text-3xl font-bold text-gray-900">
+                {Math.round(urgencyClassification.confidence * 100)}%
+              </p>
+              {urgencyClassification.confidence < 0.6 && (
+                <p className="mt-1 text-sm font-medium text-yellow-700">
+                  Low confidence — clinician review recommended
+                </p>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Rationale */}
-        {urgencyClassification?.reasoning && (
+        {urgencyClassification && urgencyClassification.rationale.length > 0 && (
           <div>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
               Rationale
             </h3>
             <ul className="list-disc space-y-1 pl-5">
-              {urgencyClassification.reasoning.split('\n').filter(Boolean).map((line, i) => (
-                <li key={i} className="text-gray-700">{line.replace(/^[•\-]\s*/, '')}</li>
+              {urgencyClassification.rationale.map((line, i) => (
+                <li key={i} className="text-gray-700">{line}</li>
               ))}
             </ul>
           </div>
         )}
 
         {/* Applied Safety Guardrails */}
-        {guardrailResult && guardrailResult.wasEscalated && (
+        {guardrailResult && guardrailResult.appliedGuardrails.length > 0 && (
           <div className="rounded-lg bg-yellow-50 p-4">
             <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-yellow-800">
               <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
               </svg>
-              Applied Safety Guardrails
+              Applied Safety Guardrails (deterministic, escalate-only)
             </h3>
             <ul className="list-disc space-y-1 pl-5">
-              {guardrailResult.escalationReasons?.map((reason, i) => (
-                <li key={i} className="text-yellow-700">{reason}</li>
+              {guardrailResult.appliedGuardrails.map((reason, i) => (
+                <li key={i} className="text-yellow-800">{reason}</li>
               ))}
             </ul>
           </div>
+        )}
+
+        {guardrailResult && guardrailResult.appliedGuardrails.length === 0 && (
+          <p className="text-sm text-gray-500">
+            No safety guardrails were triggered for this patient.
+          </p>
         )}
       </div>
     </section>
   );
 }
 
-/**
- * Clinician Summary section
- */
+// ─────────────────────────────────────────────────────────────
+// Clinician Summary
+// ─────────────────────────────────────────────────────────────
+
 function ClinicianSummarySection({ patient }: { patient: PatientRecord }) {
   const summary = patient.clinicianSummary;
 
   if (!summary) {
-    return null;
+    return (
+      <PendingSection
+        title="Clinician Summary"
+        message="Waiting for the Clinician Summary Agent to finish..."
+      />
+    );
   }
 
   return (
@@ -344,20 +548,34 @@ function ClinicianSummarySection({ patient }: { patient: PatientRecord }) {
           <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
             Report
           </h3>
-          <p className="whitespace-pre-wrap text-gray-700">{summary.summary}</p>
+          <p className="whitespace-pre-wrap text-gray-700">{summary.clinicianReport}</p>
         </div>
 
         {/* Suggested Next Steps */}
-        {summary.suggestedActions && summary.suggestedActions.length > 0 && (
+        {summary.suggestedNextSteps.length > 0 && (
           <div>
             <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
               Suggested Next Steps (Review Only)
             </h3>
             <ol className="list-decimal space-y-1 pl-5">
-              {summary.suggestedActions.map((action, i) => (
+              {summary.suggestedNextSteps.map((action, i) => (
                 <li key={i} className="text-gray-700">{action}</li>
               ))}
             </ol>
+          </div>
+        )}
+
+        {/* Flags */}
+        {summary.flags.length > 0 && (
+          <div className="rounded-lg bg-gray-50 p-4">
+            <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              Flags
+            </h3>
+            <ul className="list-disc space-y-1 pl-5">
+              {summary.flags.map((flag, i) => (
+                <li key={i} className="text-gray-700">{flag}</li>
+              ))}
+            </ul>
           </div>
         )}
       </div>
@@ -365,15 +583,13 @@ function ClinicianSummarySection({ patient }: { patient: PatientRecord }) {
   );
 }
 
-/**
- * Vitals section
- */
+// ─────────────────────────────────────────────────────────────
+// Vitals
+// ─────────────────────────────────────────────────────────────
+
 function VitalsSection({ patient }: { patient: PatientRecord }) {
   const vitals = patient.vitals;
-
-  if (!vitals) {
-    return null;
-  }
+  const captured = Boolean(vitals?.captured);
 
   return (
     <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
@@ -382,78 +598,51 @@ function VitalsSection({ patient }: { patient: PatientRecord }) {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
         </svg>
         <h2 className="text-lg font-semibold text-gray-900">
-          Vitals
+          Passive Vitals
         </h2>
       </div>
+      <p className="mb-4 text-sm text-gray-600">
+        Non-invasive kiosk estimates — clinical staff should take accurate measurements
+      </p>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {vitals.heartRate && (
-          <VitalCard
-            icon={
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-              </svg>
-            }
-            label="Heart Rate"
-            value={`${vitals.heartRate} bpm`}
-            dataConfidence="HIGH"
-          />
-        )}
-        {vitals.bloodPressure && (
-          <VitalCard
-            icon={<span className="text-xl">🩺</span>}
-            label="Blood Pressure"
-            value={vitals.bloodPressure}
-            dataConfidence="HIGH"
-          />
-        )}
-        {vitals.temperature && (
-          <VitalCard
-            icon={<span className="text-xl">🌡️</span>}
-            label="Temperature"
-            value={`${vitals.temperature}°F`}
-            dataConfidence="HIGH"
-          />
-        )}
-        {vitals.oxygenSaturation && (
-          <VitalCard
-            icon={
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
-              </svg>
-            }
-            label="Respiration"
-            value={`${vitals.oxygenSaturation} /min`}
-            dataConfidence="HIGH"
-          />
-        )}
-      </div>
-
-      <div className="mt-4 text-sm text-gray-600">
-        Data confidence: <span className="font-medium text-green-600">HIGH</span>
-      </div>
+      {captured ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <VitalCard label="Heart Rate" value={`${vitals.heartRate} bpm`} />
+          <VitalCard label="Respiratory Rate" value={`${vitals.respirationRate} /min`} />
+        </div>
+      ) : (
+        <p className="rounded-lg bg-gray-50 p-4 text-sm text-gray-600">
+          Vitals were not captured at the kiosk. This does not affect the
+          patient's place in the queue.
+        </p>
+      )}
     </section>
   );
 }
 
-function VitalCard({
-  icon,
-  label,
-  value,
-  dataConfidence,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  dataConfidence: string;
-}) {
+function VitalCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-lg bg-gray-50 p-4">
-      <div className="mb-2 flex items-center gap-2 text-gray-600">
-        {icon}
-        <span className="text-sm font-medium uppercase tracking-wide">{label}</span>
+      <div className="mb-2 text-sm font-medium uppercase tracking-wide text-gray-600">
+        {label}
       </div>
       <p className="text-2xl font-bold text-gray-900">{value}</p>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Shared placeholder for sections whose agent hasn't finished
+// ─────────────────────────────────────────────────────────────
+
+function PendingSection({ title, message }: { title: string; message: string }) {
+  return (
+    <section className="rounded-lg border border-dashed border-gray-300 bg-white p-6">
+      <h2 className="mb-2 text-lg font-semibold text-gray-900">{title}</h2>
+      <div className="flex items-center gap-2 text-gray-500">
+        <span className="h-2 w-2 animate-ping rounded-full bg-blue-500" />
+        <p className="text-sm">{message}</p>
+      </div>
+    </section>
   );
 }

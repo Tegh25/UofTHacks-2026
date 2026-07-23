@@ -1,6 +1,6 @@
 # UofTHacks-2026
 
-## Inspiration
+## TriageAI
 
 Emergency departments are often overwhelmed, and the first few minutes of intake can significantly impact patient outcomes. Today, triage relies heavily on manual questioning, language-dependent communication, and subjective interpretation—often under stressful conditions.
 
@@ -85,24 +85,49 @@ The MongoDB patient record acts as the shared “state,” allowing each agent t
 - Further research into bias mitigation and accessibility in emergency care
 
 
-# Prompt Zero for Agent
+# Running the Demo
 
-You are helping build a hackathon demo project.
+## Prerequisites
 
-Constraints:
-- This is a MONOREPO.
-- Do NOT invent credentials, API keys, or secrets.
-- Do NOT attempt to fully configure third-party SDKs.
-- Stub or mock integrations where required.
-- Use clean, readable, production-style code.
-- Prioritize demo stability over completeness.
+- Node.js 20.6+ (uses `node --env-file`)
+- A `.env` file in the repo root:
 
-Project overview:
-- Patient intake web app (React)
-- Doctor dashboard web app (React)
-- Backend API (Node.js)
-- Multi-agent orchestration using LangGraph
-- Shared MongoDB patient state
+```env
+mongodb_cluster_username=...
+mongodb_cluster_password=...
+backboard_api_key=...
+```
 
-Do NOT generate medical diagnoses or treatment logic.
-All AI output is decision-support only.
+> If MongoDB Atlas is unreachable (e.g. your IP isn't on the cluster's
+> Network Access list), the server falls back to in-memory storage so the
+> demo still works. If Backboard.io is unreachable, agents fall back to
+> deterministic logic. Both fallbacks log a warning.
+
+## Start all three services
+
+```bash
+# Terminal 1 — backend API (http://localhost:3001)
+cd server && npm install && npm run dev
+
+# Terminal 2 — patient intake kiosk (http://localhost:3000)
+cd apps/patient-intake && npm install && npm run dev
+
+# Terminal 3 — doctor dashboard (http://localhost:3002)
+cd apps/doctor-dashboard && npm install && npm run dev
+```
+
+Optional: seed demo patients so the dashboard isn't empty:
+
+```bash
+cd server && npm run seed
+```
+
+## Demo script
+
+1. Open the dashboard (`:3002`) on one screen and the kiosk (`:3000`) on another.
+2. Complete an intake on the kiosk — try mentioning "chest pain" and an age
+   over 65 to see red flags and guardrail escalations.
+3. Watch the dashboard: the new patient appears within 5 seconds, and the
+   detail view shows each agent going pending → running → completed live.
+4. Review the final urgency, applied guardrails, and clinician summary.
+5. Use "Clear Demo Data" in the dashboard nav to reset between runs.

@@ -1,28 +1,27 @@
 /**
- * Stub API functions for intake submission.
- * These are placeholders; actual HTTP logic goes here later.
+ * API functions for intake submission.
  */
 
 import type { IntakeState } from './types';
 
+const API_BASE = 'http://localhost:3001';
+
 /**
  * Submit the patient intake to the backend.
- * STUB: Simulates a successful API call.
- *
- * TODO: Replace with real fetch() call to POST /intake
+ * POST /intake
  */
 export async function submitIntake(
   intake: IntakeState
 ): Promise<{ success: boolean; intakeId: string }> {
-  // Simulate network latency
-  await new Promise((resolve) => setTimeout(resolve, 1200));
+  const response = await fetch(`${API_BASE}/intake`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(intake),
+  });
 
-  // eslint-disable-next-line no-console
-  console.log('[STUB] submitIntake called with:', intake);
+  if (!response.ok) {
+    throw new Error(`Intake submission failed: ${response.status}`);
+  }
 
-  // Return simulated success response
-  return {
-    success: true,
-    intakeId: `INT-${Date.now()}`,
-  };
+  return response.json();
 }

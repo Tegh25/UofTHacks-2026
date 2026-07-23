@@ -5,6 +5,9 @@
 
 export type UrgencyLevel = 'Low' | 'Medium' | 'High' | 'Critical';
 
+/** Display-only status for patients whose pipeline hasn't finished. */
+export type UrgencyDisplay = UrgencyLevel | 'Processing';
+
 export type AgentStatus = 'pending' | 'in_progress' | 'completed' | 'error';
 
 /**
@@ -88,6 +91,7 @@ export interface PatientRecord {
   preExistingConditions: string[];
   createdAt: string;
   updatedAt: string;
+  triageStatus?: 'processing' | 'completed' | 'error';
 
   // Agent outputs (may be undefined if agents haven't run yet)
   structuredIntake?: StructuredIntake;

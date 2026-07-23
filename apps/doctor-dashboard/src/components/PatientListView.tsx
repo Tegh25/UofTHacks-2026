@@ -3,7 +3,7 @@
  * Patients are sorted by urgency (Critical → Low) then by submission time.
  */
 
-import type { PatientRecord, UrgencyLevel } from '../types';
+import type { PatientRecord, UrgencyDisplay } from '../types';
 import UrgencyBadge from './UrgencyBadge';
 import { formatTimeAgo } from '../utils';
 
@@ -13,13 +13,19 @@ interface Props {
   isLoading: boolean;
 }
 
-// Urgency sort order (lower = higher priority)
-const urgencyOrder: Record<UrgencyLevel, number> = {
+// Urgency sort order (lower = higher priority); still-processing patients last
+const urgencyOrder: Record<UrgencyDisplay, number> = {
   Critical: 0,
   High: 1,
   Medium: 2,
   Low: 3,
+  Processing: 4,
 };
+
+/** Final urgency if the guardrail step has run, otherwise "Processing". */
+function displayUrgency(patient: PatientRecord): UrgencyDisplay {
+  return patient.guardrailResult?.finalUrgencyLevel ?? 'Processing';
+}
 
 export default function PatientListView({
   patients,
@@ -28,11 +34,7 @@ export default function PatientListView({
 }: Props) {
   // Sort patients by urgency then by submission time (oldest first within same urgency)
   const sortedPatients = [...patients].sort((a, b) => {
-    const urgencyA = a.guardrailResult?.finalUrgencyLevel || 'Low';
-    const urgencyB = b.guardrailResult?.finalUrgencyLevel || 'Low';
-
-    // First sort by urgency
-    const urgencyDiff = urgencyOrder[urgencyA] - urgencyOrder[urgencyB];
+    const urgencyDiff = urgencyOrder[displayUrgency(a)] - urgencyOrder[displayUrgency(b)];
     if (urgencyDiff !== 0) return urgencyDiff;
 
     // Then sort by time (oldest first)
@@ -41,10 +43,10 @@ export default function PatientListView({
 
   // Calculate urgency breakdown
   const urgencyCounts = patients.reduce((acc, p) => {
-    const level = p.guardrailResult?.finalUrgencyLevel || 'Low';
+    const level = displayUrgency(p);
     acc[level] = (acc[level] || 0) + 1;
     return acc;
-  }, {} as Record<UrgencyLevel, number>);
+  }, {} as Record<UrgencyDisplay, number>);
 
   if (isLoading && patients.length === 0) {
     return (
@@ -132,7 +134,7 @@ function PatientCard({
   patient: PatientRecord;
   onClick: () => void;
 }) {
-  const urgency = patient.guardrailResult?.finalUrgencyLevel || 'Low';
+  const urgency = displayUrgency(patient);
   const patientName = patient.basicInfo?.name || 'Anonymous Patient';
   const age = patient.basicInfo?.age;
   const primarySymptoms = patient.structuredIntake?.primarySymptoms || [];

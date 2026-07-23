@@ -1,23 +1,21 @@
 /**
  * Screen 5: Pre-Existing Conditions
  * Allows patient to select relevant medical context.
- * Suggestions are MOCK data; no AI inference.
+ * Conditions mentioned in the patient's description are highlighted
+ * (never pre-selected) — the patient always chooses.
  */
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { suggestConditionsFromText } from '../suggestions';
 
 interface Props {
   value: string[];
+  symptomText: string;
   onChange: (conditions: string[]) => void;
   onNext: () => void;
   onBack: () => void;
 }
 
-/**
- * MOCK suggested conditions.
- * TODO: These could be AI-suggested based on symptom text,
- * but are static for the demo.
- */
 const suggestedConditions = [
   'High blood pressure',
   'Diabetes',
@@ -31,11 +29,26 @@ const suggestedConditions = [
 
 export default function PreExistingConditionsScreen({
   value,
+  symptomText,
   onChange,
   onNext,
   onBack,
 }: Props) {
   const [customCondition, setCustomCondition] = useState('');
+
+  // Conditions the patient mentioned in their own description, shown first
+  // with a highlight badge. Nothing is ever pre-selected.
+  const highlighted = useMemo(
+    () => suggestConditionsFromText(symptomText, suggestedConditions),
+    [symptomText]
+  );
+  const orderedConditions = useMemo(
+    () => [
+      ...suggestedConditions.filter((c) => highlighted.includes(c)),
+      ...suggestedConditions.filter((c) => !highlighted.includes(c)),
+    ],
+    [highlighted]
+  );
 
   const toggleCondition = (condition: string) => {
     if (value.includes(condition)) {
@@ -113,7 +126,7 @@ export default function PreExistingConditionsScreen({
           <div className="space-y-4">
             {/* Suggested conditions */}
             <div className="space-y-2">
-              {suggestedConditions.map((condition) => (
+              {orderedConditions.map((condition) => (
                 <label
                   key={condition}
                   className={`flex cursor-pointer items-center gap-4 rounded-xl border-2 px-5 py-4 text-lg transition ${
@@ -137,6 +150,11 @@ export default function PreExistingConditionsScreen({
                   >
                     {condition}
                   </span>
+                  {highlighted.includes(condition) && (
+                    <span className="rounded-full bg-purple-100 px-3 py-1 text-xs font-semibold text-purple-800">
+                      Mentioned in your description
+                    </span>
+                  )}
                 </label>
               ))}
 

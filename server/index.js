@@ -12,8 +12,9 @@ const port = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// TODO: initialize database connection
-connectMongo();
+// Connect (or fall back to in-memory storage) BEFORE accepting requests,
+// so early submissions never hit an unconnected database.
+await connectMongo();
 
 app.use('/intake', intakeRouter);
 app.use('/patients', patientsRouter);

@@ -16,6 +16,12 @@ export default function PassiveVitalsScreen({ onComplete, onBack }: Props) {
   const [progress, setProgress] = useState(0);
   const [captured, setCaptured] = useState(false);
 
+  // Simulated readings, generated once per patient so demos vary slightly
+  const [mockVitals] = useState(() => ({
+    heartRate: 64 + Math.floor(Math.random() * 24),
+    respirationRate: 13 + Math.floor(Math.random() * 6),
+  }));
+
   /**
    * STUB: Simulates vitals capture progress.
    * TODO: Integrate Presage SDK or camera-based vitals here.
@@ -39,8 +45,8 @@ export default function PassiveVitalsScreen({ onComplete, onBack }: Props) {
     // Return simulated vitals data (or empty if skipped)
     const vitals: VitalsData = captured
       ? {
-          heartRate: 72, // Mock value
-          respirationRate: 16, // Mock value
+          heartRate: mockVitals.heartRate,
+          respirationRate: mockVitals.respirationRate,
           captured: true,
         }
       : {
@@ -53,6 +59,31 @@ export default function PassiveVitalsScreen({ onComplete, onBack }: Props) {
 
   return (
     <main className="flex min-h-screen flex-col bg-gray-50">
+      {/* Progress Header */}
+      <div className="border-b border-gray-200 bg-white px-6 py-4">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-2 flex items-center justify-between text-sm">
+            <span className="text-gray-600">Step 3 of 7</span>
+            <span className="font-medium text-primary">Vitals</span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
+            <div
+              className="h-full bg-primary transition-all duration-300"
+              style={{ width: '42.9%' }}
+            />
+          </div>
+          <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
+            <span className="text-primary">Reason</span>
+            <span className="text-primary">Symptoms</span>
+            <span className="font-medium text-primary">Vitals</span>
+            <span>Info</span>
+            <span>History</span>
+            <span>Review</span>
+            <span>Done</span>
+          </div>
+        </div>
+      </div>
+
       {/* Content */}
       <div className="flex flex-1 items-center justify-center px-6 py-12">
         <div className="w-full max-w-2xl">
@@ -86,7 +117,9 @@ export default function PassiveVitalsScreen({ onComplete, onBack }: Props) {
                     <span className="text-2xl">❤️</span>
                     <span className="font-medium text-gray-900">Heart Rate</span>
                   </div>
-                  <span className="font-bold text-green-600">72 bpm ✓</span>
+                  <span className="font-bold text-green-600">
+                    {mockVitals.heartRate} bpm ✓
+                  </span>
                 </div>
                 <div className="flex items-center justify-between rounded-xl bg-green-50 px-5 py-4">
                   <div className="flex items-center gap-3">
@@ -95,7 +128,9 @@ export default function PassiveVitalsScreen({ onComplete, onBack }: Props) {
                       Respiratory Rate
                     </span>
                   </div>
-                  <span className="font-bold text-green-600">16 /min ✓</span>
+                  <span className="font-bold text-green-600">
+                    {mockVitals.respirationRate} /min ✓
+                  </span>
                 </div>
                 <div className="flex items-center justify-between rounded-xl bg-green-50 px-5 py-4">
                   <div className="flex items-center gap-3">
